@@ -24,12 +24,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let mut handler = DummySwapEventHandler {};
     let symbol = env::var("POOL_SYMBOL")?;
     let file_path = env::var("DATA_FILE_PATH")?;
-    let token_a_decimal = env::var("POOL_TOKEN_A_DECIMAL")?.parse::<u32>().unwrap();
-    let token_b_decimal = env::var("POOL_TOKEN_B_DECIMAL")?.parse::<u32>().unwrap();
+    let token_a_decimal = env::var("POOL_TOKEN_A_DECIMAL")?.parse::<u32>()?;
+    let token_b_decimal = env::var("POOL_TOKEN_B_DECIMAL")?.parse::<u32>()?;
     let mut handler =
         CsvSwapEventHandler::new(&file_path, &symbol, token_a_decimal, token_b_decimal)?;
 
-    let interval = Duration::from_secs(1);
+    let interval = env::var("INTERVAL")?.parse::<u64>()?;
+    let interval = Duration::from_secs(interval);
     fetch_market_data_and_store_periodically(event_fetcher, interval, &mut handler).await;
     Ok(())
 }
