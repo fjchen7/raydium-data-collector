@@ -1,10 +1,12 @@
 mod swap_event_fetcher;
+mod storage;
 
 use futures_util::StreamExt;
 use std::time::Duration;
 use anchor_lang::Discriminator;
 use raydium_amm_v3::states::SwapEvent;
 use crate::swap_event_fetcher::SwapEventFetcher;
+use crate::storage::{DummySwapEventHandler, SwapEventHandler};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -14,12 +16,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ws_url = std::env::var("WS_URL")?;
     let pool_address = std::env::var("POOL_ADDRESS")?;
     let event_fetcher = swap_event_fetcher::SwapEventFetcher::connect(&ws_url, &pool_address).await.unwrap();
+    let handler = DummySwapEventHandler {};
     let interval = Duration::from_secs(1);
-    fetch_market_data_and_store_periodically(event_fetcher, interval).await;
+    fetch_market_data_and_store_periodically(event_fetcher, interval, handler).await;
     Ok(())
 }
 
-pub async fn fetch_market_data_and_store_periodically(event_fetcher: SwapEventFetcher, interval: Duration) {
+pub async fn fetch_market_data_and_store_periodically<T: SwapEventHandler>(event_fetcher: SwapEventFetcher, interval: Duration, handler: T) {
     let mut latest_swap_event = Option::<(SwapEvent, i64)>::None;
     let (mut stream, unsubscriber) = event_fetcher
         .subscribe()
@@ -33,8 +36,7 @@ pub async fn fetch_market_data_and_store_periodically(event_fetcher: SwapEventFe
                 if let Some(latest_swap_event) = latest_swap_event.take() {
                     let now = time::OffsetDateTime::now_utc();
                     let timestamp_sec = now.unix_timestamp();
-                    log::info!("Handle SwapEvent, timestamp {}", timestamp_sec);
-                    handle_swap_event(latest_swap_event.0, latest_swap_event.1);
+                    handler.handle_swap_event(latest_swap_event.0, latest_swap_event.1);
                 }
             }
             // Get latest event from stream
@@ -50,11 +52,6 @@ pub async fn fetch_market_data_and_store_periodically(event_fetcher: SwapEventFe
         }
     }
     // unsubscriber().await?
-}
-
-pub fn handle_swap_event(event: SwapEvent, timestamp: i64) {
-    log::info!("{:#?}", event);
-    // todo!()
 }
 
 // const PROGRAM_LOG: &str = "Program log: ";
