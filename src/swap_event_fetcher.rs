@@ -48,6 +48,7 @@ impl SwapEventFetcher {
         let (mut subscriber, unsubscriber) = self.client
             .logs_subscribe(filter, config)
             .await.map_err(SwapEventFetcherError::ClientError)?;
+        log::info!("Subscribed to swap_event event for pool_address: {}", self.pool_address);
         Ok((subscriber, unsubscriber))
     }
 }
