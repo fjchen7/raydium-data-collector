@@ -10,15 +10,15 @@ use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_client::rpc_response::RpcLogsResponse;
 use solana_rpc_client_api::response::Response;
 
-pub type SwapEventFetcherResult<T = ()> = Result<T, SwapEventFetcherError>;
+pub type EventFetcherResult<T = ()> = Result<T, EventFetcherError>;
 
 #[derive(Debug, Error)]
-pub enum SwapEventFetcherError {
+pub enum EventFetcherError {
     #[error("client error for subscription")]
     ClientError(#[from] PubsubClientError),
 }
 
-pub struct SwapEventFetcher {
+pub struct EventFetcher {
     pub client: PubsubClient,
     pub pool_address: Pubkey,
 }
@@ -26,16 +26,16 @@ pub struct SwapEventFetcher {
 type UnsubscribeFn = Box<dyn FnOnce() -> BoxFuture<'static, ()> + Send>;
 type LogBoxStream<'a> = BoxStream<'a, Response<RpcLogsResponse>>;
 
-impl SwapEventFetcher {
-    pub async fn connect(client: &str, pool_address: &str) -> SwapEventFetcherResult<Self> {
-        let client = PubsubClient::new(client).await.map_err(SwapEventFetcherError::ClientError)?;
+impl EventFetcher {
+    pub async fn connect(client: &str, pool_address: &str) -> EventFetcherResult<Self> {
+        let client = PubsubClient::new(client).await.map_err(EventFetcherError::ClientError)?;
         Ok(Self {
             client,
             pool_address: Pubkey::from_str(pool_address).unwrap(),
         })
     }
 
-    pub async fn subscribe(&self) -> SwapEventFetcherResult<(LogBoxStream<'_>, UnsubscribeFn)>
+    pub async fn subscribe(&self) -> EventFetcherResult<(LogBoxStream<'_>, UnsubscribeFn)>
     {
         let config = RpcTransactionLogsConfig {
             commitment: Some(CommitmentConfig {
@@ -47,7 +47,7 @@ impl SwapEventFetcher {
         );
         let (stream, unsubscriber) = self.client
             .logs_subscribe(filter, config)
-            .await.map_err(SwapEventFetcherError::ClientError)?;
+            .await.map_err(EventFetcherError::ClientError)?;
         Ok((stream, unsubscriber))
     }
 }

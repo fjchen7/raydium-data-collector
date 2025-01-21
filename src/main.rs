@@ -1,4 +1,4 @@
-mod swap_event_fetcher;
+mod event_fetcher;
 mod storage;
 mod utils;
 
@@ -7,7 +7,7 @@ use futures_util::StreamExt;
 use std::time::Duration;
 use anchor_lang::Discriminator;
 use raydium_amm_v3::states::SwapEvent;
-use crate::swap_event_fetcher::SwapEventFetcher;
+use crate::event_fetcher::EventFetcher;
 use crate::storage::{CsvSwapEventHandler, SwapEventHandler};
 
 #[tokio::main]
@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ws_url = env::var("WS_URL")?;
     let pool_address = env::var("POOL_ADDRESS")?;
-    let event_fetcher = swap_event_fetcher::SwapEventFetcher::connect(&ws_url, &pool_address).await.unwrap();
+    let event_fetcher = event_fetcher::EventFetcher::connect(&ws_url, &pool_address).await.unwrap();
 
     // let mut handler = DummySwapEventHandler {};
     let symbol = env::var("POOL_SYMBOL")?;
@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub async fn fetch_market_data_and_store_periodically<T: SwapEventHandler>(event_fetcher: SwapEventFetcher, interval: Duration, handler: &mut T) {
+pub async fn fetch_market_data_and_store_periodically<T: SwapEventHandler>(event_fetcher: EventFetcher, interval: Duration, handler: &mut T) {
     let mut latest_swap_event = Option::<(SwapEvent, i64)>::None;
     let (mut stream, _) = event_fetcher
         .subscribe()
@@ -91,13 +91,13 @@ pub fn filter_latest_swap_event(
             };
             // A SwapEvent will be emitted when a trade occurs
             if matches!(disc, SwapEvent::DISCRIMINATOR) {
-                match decode_event(&mut slice) {
+                return match decode_event(&mut slice) {
                     Ok(event) => {
-                        return Some(event);
+                        Some(event)
                     }
                     Err(e) => {
                         log::warn!("Could not decode event: {}, log {}", e, log);
-                        return None;
+                        None
                     }
                 }
             } else {
