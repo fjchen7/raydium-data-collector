@@ -1,5 +1,6 @@
 mod swap_event_fetcher;
 mod storage;
+mod utils;
 
 use std::env;
 use futures_util::StreamExt;

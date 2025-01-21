@@ -2,6 +2,7 @@ use std::fs;
 use std::fs::{File, OpenOptions};
 use csv::Writer;
 use raydium_amm_v3::states::SwapEvent;
+use crate::utils::sqrt_price_x64_to_price;
 
 pub trait SwapEventHandler {
     fn handle_swap_event(&mut self, event: SwapEvent, timestamp: i64) -> anyhow::Result<()>;
@@ -39,12 +40,6 @@ impl CsvSwapEventHandler {
     }
 }
 
-
-pub const Q_RATIO: f64 = 1.0001;
-pub fn tick_to_price(tick: i32) -> f64 {
-    Q_RATIO.powi(tick)
-}
-
 impl SwapEventHandler for CsvSwapEventHandler {
     fn handle_swap_event(&mut self, event: SwapEvent, timestamp: i64) -> anyhow::Result<()> {
         // CSV column
@@ -61,8 +56,7 @@ impl SwapEventHandler for CsvSwapEventHandler {
         };
         // let trade_quantity = trade_quantity as f64 / 10u64.pow(SOL_DECIMAL) as f64;
         let trade_quantity = trade_quantity as f64 / 10u64.pow(self.token_b_decimal) as f64;
-        let trade_price = tick_to_price(event.tick);
-        let trade_price = trade_price * (10u64.pow(self.token_b_decimal - self.token_a_decimal) as f64);
+        let trade_price = sqrt_price_x64_to_price(event.sqrt_price_x64, self.token_b_decimal as u8, self.token_a_decimal as u8);
         let data = vec![
             vec![timestamp.to_string(), self.symbol.clone(), trade_price.to_string(), trade_quantity.to_string(), trade_side.to_string()]
         ];
