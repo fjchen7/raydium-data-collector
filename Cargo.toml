@@ -9,6 +9,7 @@ tokio = "1.43.0"
 anyhow = "1.0.95"
 serde = "1.0.217"
 thiserror = "2.0.11"
+time = "0.3"
 
 raydium-amm-v3 = { git = "https://github.com/raydium-io/raydium-clmm", features = [
     "client",
@@ -23,3 +24,4 @@ spl-memo = "=4.0.0"
 anchor-lang = "=0.29.0"
 
 solana-rpc-client-api = "<1.17.0"
+log = "0.4.25"
