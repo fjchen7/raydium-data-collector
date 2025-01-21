@@ -1,6 +1,6 @@
 use raydium_amm_v3::libraries::fixed_point_64;
 
-// Utils method to convert price in different format
+// Util methods to convert price in different format
 // Copied from: https://github.com/raydium-io/raydium-clmm/blob/master/client/src/instructions/utils.rs#L235-L276
 pub fn multipler(decimals: u8) -> f64 {
     (10_i32).checked_pow(decimals.try_into().unwrap()).unwrap() as f64
