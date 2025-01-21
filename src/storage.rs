@@ -10,27 +10,31 @@ pub trait SwapEventHandler {
 
 pub struct CsvSwapEventHandler {
     symbol: String,
+    token_a_decimal: u32,
+    token_b_decimal: u32,
     writer: Writer<File>,
 }
 
+pub const HEADERS: [&str; 5] = ["timestamp", "symbol", "trade_price", "trade_quantity", "trade_side"];
 impl CsvSwapEventHandler {
-    pub fn new(file_path: &str, symbol: &str) -> anyhow::Result<Self> {
+    pub fn new(file_path: &str, symbol: &str, token_a_decimal: u32, token_b_decimal: u32) -> anyhow::Result<Self> {
         let file_exists = fs::metadata(file_path).is_ok();
         let file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(file_path)?;
 
-        let headers = ["timestamp", "symbol", "trade_price", "trade_quantity", "trade_side"];
         let mut writer = Writer::from_writer(file);
         if !file_exists {
-            writer.write_record(&headers)?;
+            writer.write_record(&HEADERS)?;
             writer.flush()?;
         }
 
         Ok(Self {
-            writer,
             symbol: symbol.to_string(),
+            token_a_decimal,
+            token_b_decimal,
+            writer,
         })
     }
 }
@@ -41,11 +45,6 @@ pub fn tick_to_price(tick: i32) -> f64 {
     Q_RATIO.powi(tick)
 }
 
-pub const SOL_DECIMAL: u32 = 9;
-pub const USDC_DECIMAL: u32 = 6;
-
-// SOL：精度2
-//
 impl SwapEventHandler for CsvSwapEventHandler {
     fn handle_swap_event(&mut self, event: SwapEvent, timestamp: i64) -> anyhow::Result<()> {
         // CSV column
@@ -60,9 +59,10 @@ impl SwapEventHandler for CsvSwapEventHandler {
         } else {
             (event.amount_1, "SELL")
         };
-        let trade_quantity = trade_quantity as f64 / 10u64.pow(SOL_DECIMAL) as f64;
+        // let trade_quantity = trade_quantity as f64 / 10u64.pow(SOL_DECIMAL) as f64;
+        let trade_quantity = trade_quantity as f64 / 10u64.pow(self.token_b_decimal) as f64;
         let trade_price = tick_to_price(event.tick);
-        let trade_price = trade_price * (10u64.pow(SOL_DECIMAL - USDC_DECIMAL) as f64);
+        let trade_price = trade_price * (10u64.pow(self.token_b_decimal - self.token_a_decimal) as f64);
         let data = vec![
             vec![timestamp.to_string(), self.symbol.clone(), trade_price.to_string(), trade_quantity.to_string(), trade_side.to_string()]
         ];
@@ -71,7 +71,6 @@ impl SwapEventHandler for CsvSwapEventHandler {
         }
 
         self.writer.flush()?;
-        log::info!("timestamp {} write event {:#?}", timestamp, event);
         Ok(())
     }
 }
@@ -84,25 +83,3 @@ impl SwapEventHandler for DummySwapEventHandler {
         Ok(())
     }
 }
-
-//
-// /**
-// [2025-01-21T07:22:16Z INFO  raydium_data_collector] SwapEvent {
-//         pool_state: 8sLbNZoA1cfnvMJLPfp98ZLAnFSYCFApfJKMbiXNLwxj,
-//         sender: HV1KXxWFaSeriyFvXyx48FqG9BoFbfinB8njCJonqP7K,
-//         token_account_0: 2rikd7tzPbmowhUJzPNVtX7fuUGcnBa8jqJnx6HbtHeE,
-//         token_account_1: muUJotr5nCNuBEd6aj25stTX8oe8M9mqotcjushGBZP,
-//         amount_0: 2608897681,
-//         transfer_fee_0: 0,
-//         amount_1: 617359418,
-//         transfer_fee_1: 0,
-//         zero_for_one: true,
-//         sqrt_price_x64: 8973873876726606866,
-//         liquidity: 138036922165946,
-//         tick: -14413,
-//     }
-// */
-// // pub fn handle_swap_event(event: SwapEvent, timestamp: i64) {
-// //     log::info!("{:#?}", event);
-// //     // todo!()
-// // }

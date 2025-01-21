@@ -19,8 +19,8 @@ pub enum SwapEventFetcherError {
 }
 
 pub struct SwapEventFetcher {
-    client: PubsubClient,
-    pool_address: Pubkey,
+    pub client: PubsubClient,
+    pub pool_address: Pubkey,
 }
 
 type UnsubscribeFn = Box<dyn FnOnce() -> BoxFuture<'static, ()> + Send>;
@@ -45,11 +45,10 @@ impl SwapEventFetcher {
         let filter = RpcTransactionLogsFilter::Mentions(
             vec![self.pool_address.to_string(), ]
         );
-        let (mut subscriber, unsubscriber) = self.client
+        let (stream, unsubscriber) = self.client
             .logs_subscribe(filter, config)
             .await.map_err(SwapEventFetcherError::ClientError)?;
-        log::info!("Subscribed to swap_event event for pool_address: {}", self.pool_address);
-        Ok((subscriber, unsubscriber))
+        Ok((stream, unsubscriber))
     }
 }
 

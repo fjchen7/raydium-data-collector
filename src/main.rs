@@ -1,26 +1,31 @@
 mod swap_event_fetcher;
 mod storage;
 
+use std::env;
 use futures_util::StreamExt;
 use std::time::Duration;
 use anchor_lang::Discriminator;
 use raydium_amm_v3::states::SwapEvent;
 use crate::swap_event_fetcher::SwapEventFetcher;
-use crate::storage::{CsvSwapEventHandler, DummySwapEventHandler, SwapEventHandler};
+use crate::storage::{CsvSwapEventHandler, SwapEventHandler};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv()?;
     env_logger::init();
 
-    let ws_url = std::env::var("WS_URL")?;
-    let pool_address = std::env::var("POOL_ADDRESS")?;
+    let ws_url = env::var("WS_URL")?;
+    let pool_address = env::var("POOL_ADDRESS")?;
     let event_fetcher = swap_event_fetcher::SwapEventFetcher::connect(&ws_url, &pool_address).await.unwrap();
 
     // let mut handler = DummySwapEventHandler {};
-    let symbol = std::env::var("POOL_SYMBOL")?;
-    let file_path = std::env::var("DATA_FILE_PATH")?;
-    let mut handler = CsvSwapEventHandler::new(&file_path, &symbol)?;
+    let symbol = env::var("POOL_SYMBOL")?;
+    let file_path = env::var("DATA_FILE_PATH")?;
+    let token_a_decimal = env::var("POOL_TOKEN_A_DECIMAL")?.parse::<u32>().unwrap();
+    let token_b_decimal = env::var("POOL_TOKEN_B_DECIMAL")?.parse::<u32>().unwrap();
+    let mut handler = CsvSwapEventHandler::new(&file_path, &symbol,
+                                               token_a_decimal, token_b_decimal,
+    )?;
 
     let interval = Duration::from_secs(1);
     fetch_market_data_and_store_periodically(event_fetcher, interval, &mut handler).await;
@@ -32,14 +37,16 @@ pub async fn fetch_market_data_and_store_periodically<T: SwapEventHandler>(event
     let (mut stream, _) = event_fetcher
         .subscribe()
         .await.unwrap();
-    log::info!("Subscribed to swap_event event updates");
+    log::info!("Subscribed to swap_event event for pool_address: {}", event_fetcher.pool_address);
     let mut interval = tokio::time::interval(interval);
     loop {
         tokio::select! {
             // Handle event every interval
             _ = interval.tick() => {
                 if let Some(latest_swap_event) = latest_swap_event.take() {
-                    handler.handle_swap_event(latest_swap_event.0, latest_swap_event.1).unwrap();
+                    let (event, timestamp) = latest_swap_event;
+                    log::info!("timestamp {} save event {:#?}", timestamp, event);
+                    handler.handle_swap_event(event, timestamp).unwrap();
                 }
             }
             // Get latest event from stream
@@ -81,6 +88,7 @@ pub fn filter_latest_swap_event(
                 slice = &slice[8..];
                 disc
             };
+            // A SwapEvent will be emitted when a trade occurs
             if matches!(disc, SwapEvent::DISCRIMINATOR) {
                 match decode_event(&mut slice) {
                     Ok(event) => {
