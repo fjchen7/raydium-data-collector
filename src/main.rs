@@ -7,29 +7,44 @@ use crate::storage::{CsvSwapEventHandler, SwapEventHandler};
 use anchor_lang::Discriminator;
 use futures_util::StreamExt;
 use raydium_amm_v3::states::SwapEvent;
-use std::env;
 use std::time::Duration;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct Config {
+    ws_url: String,
+    pool_address: String,
+    #[serde(rename = "pool_symbol")]
+    symbol: String,
+    #[serde(rename = "pool_token_a_decimal")]
+    token_a_decimal: u32,
+    #[serde(rename = "pool_token_b_decimal")]
+    token_b_decimal: u32,
+    data_file_path: String,
+    interval: u64,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv()?;
     env_logger::init();
+    let Config {
+        ws_url,
+        pool_address,
+        symbol,
+        data_file_path,
+        token_a_decimal,
+        token_b_decimal,
+        interval,
+    } = envy::from_env()?;
 
-    let ws_url = env::var("WS_URL")?;
-    let pool_address = env::var("POOL_ADDRESS")?;
     let event_fetcher = event_fetcher::EventFetcher::connect(&ws_url, &pool_address)
         .await
         .unwrap();
 
-    // let mut handler = DummySwapEventHandler {};
-    let symbol = env::var("POOL_SYMBOL")?;
-    let file_path = env::var("DATA_FILE_PATH")?;
-    let token_a_decimal = env::var("POOL_TOKEN_A_DECIMAL")?.parse::<u32>()?;
-    let token_b_decimal = env::var("POOL_TOKEN_B_DECIMAL")?.parse::<u32>()?;
     let mut handler =
-        CsvSwapEventHandler::new(&file_path, &symbol, token_a_decimal, token_b_decimal)?;
+        CsvSwapEventHandler::new(&data_file_path, &symbol, token_a_decimal, token_b_decimal)?;
 
-    let interval = env::var("INTERVAL")?.parse::<u64>()?;
     let interval = Duration::from_secs(interval);
     fetch_market_data_and_store_periodically(event_fetcher, interval, &mut handler).await;
     Ok(())
